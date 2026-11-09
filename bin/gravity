@@ -1,0 +1,89 @@
+#!/bin/bash
+# Runs under bash 3.2 because that is what macOS ships.
+
+GRAVITY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
+. "$GRAVITY_ROOT/lib/core.sh"
+. "$GRAVITY_ROOT/lib/run.sh"
+. "$GRAVITY_ROOT/lib/plan.sh"
+. "$GRAVITY_ROOT/lib/guards.sh"
+. "$GRAVITY_ROOT/lib/gate.sh"
+. "$GRAVITY_ROOT/lib/review.sh"
+. "$GRAVITY_ROOT/lib/land.sh"
+. "$GRAVITY_ROOT/lib/setup.sh"
+. "$GRAVITY_ROOT/lib/hooks.sh"
+
+DIR=$PWD
+RUN_ID=
+while :; do
+  case "${1:-}" in
+    -C) DIR=$2; shift 2 ;;
+    --run) RUN_ID=$2; shift 2 ;;
+    *) break ;;
+  esac
+done
+
+cmd=${1:-}
+[ -n "$cmd" ] || die "usage: gravity [-C dir] [--run id] <command>"
+shift
+
+case "$cmd" in
+  hook) cmd_hook "$@"; exit $? ;;
+  version) echo "$GRAVITY_VERSION"; exit 0 ;;
+  setup)
+    if [ "${1:-}" = done ]; then
+      shift
+      setup_done "$@"
+      exit $?
+    fi
+    ;;
+  verify) exec bash "$GRAVITY_ROOT/lib/receipt-check" -C "$DIR" "$@" ;;
+esac
+
+init_repo
+
+case "$cmd" in
+  run)
+    sub=${1:-}; shift
+    [ "$sub" = start ] || die "usage: gravity run start ..."
+    cmd_run_start "$@" ;;
+  status) cmd_status "$@" ;;
+  setup) cmd_setup "$@" ;;
+  plan)
+    sub=${1:-}; shift
+    case "$sub" in
+      check) cmd_plan_check "$@" ;;
+      change) resolve_run; cmd_change plan "$@" ;;
+      *) die "usage: gravity plan check|change" ;;
+    esac ;;
+  next | put | doc | wait | isolate | brief | dispatch | red | gate | package | finding | ruling | halt | pause | report | recover | land | receipt)
+    resolve_run
+    fn=cmd_$cmd
+    "$fn" "$@" ;;
+  goal)
+    sub=${1:-}; shift
+    [ "$sub" = change ] || die "usage: gravity goal change <reason>"
+    resolve_run; cmd_change goal "$@" ;;
+  playbook)
+    sub=${1:-}; shift
+    [ "$sub" = up ] || die "usage: gravity playbook up <playbook> --reason <r>"
+    resolve_run; cmd_playbook_up "$@" ;;
+  task)
+    sub=${1:-}; shift
+    resolve_run
+    case "$sub" in
+      start) cmd_task_start "$@" ;;
+      report) cmd_task_report "$@" ;;
+      done) cmd_task_done "$@" ;;
+      block) cmd_task_block "$@" ;;
+      *) die "usage: gravity task start|report|done|block" ;;
+    esac ;;
+  fix)
+    sub=${1:-}; shift
+    [ "$sub" = round ] || die "usage: gravity fix round <n|G5|G6> --cause <c>"
+    resolve_run; cmd_fix_round "$@" ;;
+  review)
+    sub=${1:-}; shift
+    [ "$sub" = check ] || die "usage: gravity review check <file>"
+    resolve_run; cmd_review_check "$@" ;;
+  *) die "unknown command: $cmd" ;;
+esac

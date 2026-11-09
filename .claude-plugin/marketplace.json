@@ -1,0 +1,12 @@
+{
+  "name": "gravity",
+  "owner": { "name": "Sirkka" },
+  "plugins": [
+    {
+      "name": "gravity",
+      "source": "./",
+      "description": "An engineering workflow that asks first, proves every step and reports what happened, with a receipt CI can check.",
+      "version": "1.0.0"
+    }
+  ]
+}

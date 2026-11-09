@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gravity: how it works</title>
+<style>
+:root {
+  --paper: #f6f2e9;
+  --card: #fffdf8;
+  --ink: #1d2733;
+  --soft: #5a6470;
+  --rule: #d9d1c0;
+  --brass: #a8761f;
+  --human: #1f5fa8;
+  --human-bg: #e3edf8;
+  --hard: #ad3527;
+  --hard-bg: #f9e4e0;
+  --judge: #8a5a08;
+  --judge-bg: #f7ebcf;
+  --ok: #2c6e49;
+  --ok-bg: #e0f0e6;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.6 var(--sans); }
+main, .hero-in, .nav-in { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+h1, h2, h3 { font-family: var(--serif); line-height: 1.2; font-weight: 600; }
+h2 { font-size: 32px; margin: 0 0 8px; }
+h3 { font-size: 21px; margin: 32px 0 10px; }
+p { margin: 0 0 14px; }
+code, pre { font-family: var(--mono); font-size: .86em; }
+code { background: #ece6d7; padding: 1px 5px; border-radius: 3px; }
+a { color: inherit; }
+section { padding: 56px 0 8px; }
+.lead { font-size: 18px; color: var(--soft); max-width: 720px; margin-bottom: 26px; }
+
+.hero { background: var(--ink); color: #f4efe4; padding: 60px 0 52px; }
+.hero-in { display: flex; gap: 40px; align-items: center; justify-content: space-between; }
+.hero h1 { font-size: 66px; margin: 0 0 6px; letter-spacing: -.5px; }
+.tagline { font-family: var(--serif); font-size: 26px; color: #e7c47f; margin: 0 0 16px; }
+.hero p { max-width: 620px; color: #c9d0d8; }
+.status { display: inline-block; border: 1px solid #5d6b7a; padding: 5px 12px; border-radius: 20px; font-size: 13.5px; color: #dbe2ea; }
+.bob { flex: 0 0 90px; }
+
+nav { position: sticky; top: 0; z-index: 5; background: #efe9dc; border-bottom: 1px solid var(--rule); }
+.nav-in { display: flex; gap: 20px; overflow-x: auto; padding-top: 12px; padding-bottom: 12px; font-size: 14px; white-space: nowrap; }
+nav a { text-decoration: none; color: var(--soft); }
+nav a:hover { color: var(--ink); text-decoration: underline; }
+
+.counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 12px; margin-top: 40px; }
+.count { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; }
+.count b { display: block; font: 600 34px/1 var(--serif); color: var(--brass); margin-bottom: 4px; }
+.count span { font-size: 14px; color: var(--soft); }
+
+.flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 18px 0 8px; }
+.flow > div { flex: 1 1 150px; background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; font-size: 14.5px; position: relative; }
+.flow b { display: block; font-family: var(--serif); font-size: 17px; margin-bottom: 3px; }
+.flow > div:not(:last-child)::after { content: "\2192"; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); color: var(--brass); font-size: 15px; font-weight: 700; background: var(--paper); line-height: 1; z-index: 1; }
+
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; background: var(--card); border: 1px solid var(--rule); font-size: 14.5px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--rule); }
+th { background: #ece6d7; font-size: 13px; font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; }
+
+.stack { display: grid; gap: 6px; margin: 18px 0; }
+.layer { display: grid; grid-template-columns: 150px 1fr 150px; gap: 16px; align-items: center; color: #fff; padding: 15px 20px; border-radius: 6px; }
+.layer b { font-family: var(--serif); font-size: 20px; }
+.layer small { font-size: 13px; opacity: .85; text-align: right; }
+.l1 { background: #6b7f92; } .l2 { background: #4d6276; } .l3 { background: #33475a; } .l4 { background: #1d2733; }
+
+.three { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 14px; }
+.box { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 16px 18px; }
+.box h4 { font-family: var(--serif); font-size: 18px; margin: 0 0 4px; font-weight: 600; }
+.box p { font-size: 14.5px; color: var(--soft); margin-bottom: 8px; }
+pre { margin: 0; white-space: pre; overflow-x: auto; line-height: 1.55; }
+.dark { background: var(--ink); color: #e6e9ec; padding: 16px 18px; border-radius: 8px; font-size: 13px; }
+
+.tag { display: inline-block; font: 600 12px/1 var(--sans); padding: 4px 8px; border-radius: 4px; white-space: nowrap; }
+.human { background: var(--human-bg); color: var(--human); }
+.hard { background: var(--hard-bg); color: var(--hard); }
+.judge { background: var(--judge-bg); color: var(--judge); }
+.good { background: var(--ok-bg); color: var(--ok); }
+
+.pipe { position: relative; margin-top: 18px; }
+.pipe::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 34px; width: 2px; margin-left: -1px; background: var(--brass); }
+.act { position: relative; text-align: center; margin: 22px 0 14px; }
+.act span { position: relative; background: var(--paper); padding: 2px 14px; font: 600 14px var(--sans); letter-spacing: .08em; color: var(--brass); }
+.line { position: relative; text-align: center; border-top: 3px double var(--ink); border-bottom: 3px double var(--ink); background: #ece6d7; padding: 7px; margin: 22px 0; font-size: 14px; font-weight: 600; }
+.step { position: relative; display: grid; grid-template-columns: 1fr 46px 1fr; align-items: center; margin-bottom: 12px; }
+.dot { width: 16px; height: 16px; background: var(--paper); border: 3px solid var(--brass); border-radius: 50%; justify-self: center; z-index: 1; }
+.step .box { padding: 11px 15px; }
+.step h4 { font-size: 19px; }
+.step p { margin: 0; }
+.gate { display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.gatename { display: flex; gap: 8px; align-items: center; font: 600 17px var(--serif); }
+.plumb { display: block; margin: -6px auto 0; }
+
+.loop { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0; counter-reset: s; }
+.loop div { counter-increment: s; flex: 1 1 165px; background: var(--card); border: 1px solid var(--rule); border-left: 3px solid var(--brass); padding: 9px 12px; font-size: 14px; }
+.loop div::before { content: counter(s) ". "; color: var(--brass); font-weight: 700; }
+
+.rounds { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin: 14px 0; }
+.round { background: var(--card); border: 1px solid var(--rule); border-radius: 6px; padding: 11px 13px; font-size: 14px; }
+.round b { display: block; font-family: var(--serif); font-size: 16px; }
+.round.end { background: var(--hard-bg); border-color: #e6bdb6; }
+
+.matrix td, .matrix th { text-align: center; }
+.matrix td:first-child, .matrix th:first-child { text-align: left; }
+.no { color: #a39a88; }
+
+details { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; margin-bottom: 8px; }
+summary { cursor: pointer; padding: 13px 16px; display: grid; grid-template-columns: minmax(210px, 300px) 1fr; gap: 16px; align-items: baseline; }
+summary b { font-family: var(--serif); font-size: 18px; font-weight: 600; }
+summary span { color: var(--soft); font-size: 14.5px; }
+details ol { margin: 0; padding: 2px 20px 16px 50px; font-size: 15px; }
+details li { margin-bottom: 5px; }
+
+.note { border-left: 3px solid var(--brass); padding: 4px 0 4px 14px; color: var(--soft); font-size: 14.5px; margin: 14px 0; }
+footer { margin-top: 56px; padding: 22px 0 40px; border-top: 1px solid var(--rule); color: var(--soft); font-size: 13.5px; }
+
+@media (max-width: 900px) {
+  .flow > div:not(:last-child)::after { content: none; }
+}
+@media (max-width: 720px) {
+  .hero h1 { font-size: 50px; } .bob { display: none; }
+  .pipe::before { left: 10px; }
+  .step { grid-template-columns: 22px 1fr; row-gap: 6px; }
+  .step > .box { grid-column: 2; grid-row: 1; }
+  .step > .dot { grid-column: 1; grid-row: 1; justify-self: start; }
+  .step > .gate { grid-column: 2; grid-row: 2; }
+  .act { text-align: left; margin-left: 22px; }
+  .layer { grid-template-columns: 1fr; gap: 2px; } .layer small { text-align: left; }
+  summary { grid-template-columns: 1fr; gap: 2px; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-in">
+    <div>
+      <h1>Gravity</h1>
+      <p class="tagline">Ask first. Prove every step. Report what happened.</p>
+      <p>A Claude Code plugin that takes a request from intent to reviewed, landable code. Progress is decided by something outside the agent, the way nobody on site can argue with a plumb line.</p>
+      <span class="status">Design stage: reviewed as buildable on paper. No code has been built yet.</span>
+    </div>
+    <svg class="bob" viewBox="0 0 90 190" role="img" aria-label="A plumb bob hanging from a line">
+      <line x1="45" y1="0" x2="45" y2="110" stroke="#e7c47f" stroke-width="2"/>
+      <path d="M45 110 L68 134 Q45 150 45 186 Q45 150 22 134 Z" fill="#e7c47f"/>
+    </svg>
+  </div>
+</header>
+
+<nav aria-label="Sections">
+  <div class="nav-in">
+    <a href="#trigger">Trigger</a><a href="#architecture">Architecture</a><a href="#skills">Skills</a><a href="#pipeline">Pipeline</a><a href="#task">Task loop</a><a href="#playbooks">Playbooks</a><a href="#state">State</a><a href="#receipt">Receipt</a><a href="#scenarios">Scenarios</a><a href="#evals">Evals</a><a href="#open">Open items</a>
+  </div>
+</nav>
+
+<main>
+
+<div class="counts">
+  <div class="count"><b>1</b><span>skill, the router</span></div>
+  <div class="count"><b>4</b><span>playbooks of work</span></div>
+  <div class="count"><b>7</b><span>disciplines</span></div>
+  <div class="count"><b>6</b><span>subagents</span></div>
+  <div class="count"><b>6</b><span>slash commands</span></div>
+  <div class="count"><b>9</b><span>gates in the full playbook</span></div>
+</div>
+
+<section id="trigger">
+  <h2>How it gets triggered</h2>
+  <p class="lead">Gravity starts only when you type <code>/gravity</code> and your request. Sessions that never type it are untouched.</p>
+
+  <div class="flow">
+    <div><b>Install, then setup</b>The <code>/gravity:setup</code> wizard leaves exactly one workflow on</div>
+    <div><b>You type /gravity</b>And your request. Nothing else starts it</div>
+    <div><b>Router loads</b>Refused until the wizard has been done</div>
+    <div><b>Router classifies</b>Kind x size x risk</div>
+    <div><b>Playbook announced</b>One line, and you can override it</div>
+    <div><b>Ledger starts</b>Every playbook except Tiny opens a run</div>
+  </div>
+
+  <p class="note">Why a typed command: description matching is stochastic, and one public eval saw a test-first skill fire in only 2 of 7 runs on a test-first prompt. A plugin also cannot unload another one mid-session, so the wizard makes sure only one workflow is on.</p>
+
+  <h3>How the router picks a playbook</h3>
+  <div class="scroll"><table>
+    <tr><th>If the request is...</th><th>Then</th><th>Example</th></tr>
+    <tr><td>A plain question</td><td>Answer it, with claims labelled. No run</td><td>"Where is auth handled?"</td></tr>
+    <tr><td>One clear edit, nothing to decide</td><td><span class="tag good">Tiny</span></td><td>Fix a typo in a label</td></tr>
+    <tr><td>Something is wrong</td><td><span class="tag good">Bug</span></td><td>"The export drops the last row"</td></tr>
+    <tr><td>One area, a few tasks</td><td><span class="tag good">Small</span></td><td>Add a filter to one page</td></tr>
+    <tr><td>Several areas, or a risk path</td><td><span class="tag good">Standard</span> plus the security reviewer on a risk match</td><td>A new payment flow</td></tr>
+  </table></div>
+  <p class="note">Risk means auth, payments, migrations, personal or patient data, or a path in the project's risk list. Work moves up a playbook automatically if it outgrows its size, and Gravity says so out loud.</p>
+
+  <h3>Everything else that fires</h3>
+  <div class="scroll"><table>
+    <tr><th>Event</th><th>What runs</th><th>Effect</th></tr>
+    <tr><td><code>claude --resume</code></td><td>session-start hook</td><td>Only the session id and a run pointer. The conversation already holds the router</td></tr>
+    <tr><td>Unfinished run found</td><td>session-start hook</td><td>"Run X stopped at task 3. Resume or abandon?" It never resumes on its own</td></tr>
+    <tr><td>You type <code>/gravity:approve</code></td><td>prompt hook</td><td>Records approval, only if the document is unchanged since you saw it</td></tr>
+    <tr><td>Agent edits a file</td><td>pre-tool hook</td><td>Denied if the edit is outside what this phase allows</td></tr>
+    <tr><td>Agent runs Bash</td><td>pre-tool hook</td><td>During a run, denies <code>git push</code>, <code>gh pr merge</code> and declared deploy commands</td></tr>
+    <tr><td>Agent tries to stop</td><td>stop hook</td><td>In Act 2, sent back to work unless a wait, halt or pause is recorded</td></tr>
+    <tr><td>Pull request opens</td><td>CI workflow</td><td>Checks the run receipt against the code being merged, under the base branch rules</td></tr>
+  </table></div>
+</section>
+
+<section id="architecture">
+  <h2>Architecture</h2>
+  <p class="lead">Four layers. The bottom one holds crash safety and gates and rarely changes. The wording above it gets tuned constantly, and that tuning can never endanger recovery.</p>
+
+  <div class="stack">
+    <div class="layer l1"><b>Project</b><span>Gravity conf, risk paths, guidelines. Committed in each repo</span><small>differs per repo</small></div>
+    <div class="layer l2"><b>Playbooks</b><span>Bug, Tiny, Small, Standard</span><small>how much process</small></div>
+    <div class="layer l3"><b>Disciplines</b><span>Ask, plan, build, prove, debug, review, report</span><small>tuned constantly</small></div>
+    <div class="layer l4"><b>Spine</b><span>Router, ledger, gates, hooks</span><small>rarely changes</small></div>
+  </div>
+
+  <h3>Where everything lives</h3>
+  <div class="three">
+    <div class="box">
+      <h4>The plugin</h4>
+      <p>Installed once. Needs only bash and git.</p>
+<pre>gravity/
+├ .claude-plugin/
+├ hooks/
+├ skills/gravity/SKILL.md
+├ playbooks/*.md
+├ disciplines/*.md
+├ agents/*.md
+├ commands/*.md
+├ bin/gravity
+├ templates/
+└ tests/</pre>
+    </div>
+    <div class="box">
+      <h4>Your repo</h4>
+      <p>The conf, verify script, receipts and CI check are committed. Docs stay uncommitted until you commit them.</p>
+<pre>.gravity/project.conf
+.gravity/verify.sh
+.gravity/known-failing.txt
+.gravity/receipts/
+.gravity/receipt-check
+.github/workflows/gravity-verify.yml
+.gravity/worktrees/   excluded
+.gravity/scratch/     excluded
+docs/specs/
+docs/plans/</pre>
+    </div>
+    <div class="box">
+      <h4>The run's record</h4>
+      <p>Inside <code>.git</code>, so every worktree sees it and it can't be committed by accident.</p>
+<pre>.git/gravity/runs/&lt;id&gt;/
+├ ledger.log
+├ project.conf   pinned
+├ briefs/
+├ reports/
+├ reviews/
+├ evidence/
+├ patches/
+└ report.md</pre>
+    </div>
+  </div>
+</section>
+
+<section id="skills">
+  <h2>Skills, agents and commands</h2>
+  <p class="lead">Gravity ships exactly one skill. A second skill would be a second router competing for the same request, so everything else is a file the router reads at the right moment. It uses no other plugin's skills.</p>
+
+  <h3>The seven disciplines</h3>
+  <div class="scroll"><table>
+    <tr><th>Discipline</th><th>What it makes the agent do</th><th>Best ideas drawn from</th></tr>
+    <tr><td>Ask</td><td>Read first, attach a guess to each question, never ask what running something could answer</td><td>Ironclad, Flightplan, Keel, your skills</td></tr>
+    <tr><td>Plan</td><td>Only the decisions an implementer can't make alone. Every task names its proof</td><td>Ironclad, Keel, your skills</td></tr>
+    <tr><td>Build</td><td>Script-built briefs, one writer, a fresh agent per round, failures handled by cause</td><td>Ironclad, Keel, your skills</td></tr>
+    <tr><td>Prove</td><td>A claim needs fresh evidence, on this exact code, from a check shown able to fail</td><td>Flightplan, Keel, Ironclad, your skills</td></tr>
+    <tr><td>Debug</td><td>Restate, map, locate, score by evidence. No Confirmed cause, no fix</td><td>Your skills, Keel, Ironclad, Flightplan</td></tr>
+    <tr><td>Review</td><td>A fixed reviewer contract, and findings checked mechanically against the code</td><td>Ironclad, Keel, Flightplan, your skills</td></tr>
+    <tr><td>Report</td><td>Your decisions first, then every requirement with evidence, then what wasn't verified</td><td>Keel, your skills, Flightplan, Ironclad</td></tr>
+  </table></div>
+
+  <h3>The subagents</h3>
+  <div class="scroll"><table>
+    <tr><th>Agent</th><th>Model</th><th>Job</th><th>Used in</th></tr>
+    <tr><td>implementer</td><td>sonnet, opus on the last fix round</td><td>Writes one task. Sees only its brief</td><td>Standard</td></tr>
+    <tr><td>task-reviewer</td><td>sonnet</td><td>Fresh eyes on one task</td><td>Standard</td></tr>
+    <tr><td>branch-reviewer</td><td>opus</td><td>Whole-branch review at G6</td><td>Bug, Small, Standard</td></tr>
+    <tr><td>security-reviewer</td><td>opus</td><td>Added when work touches a risk path</td><td>Any risk match</td></tr>
+    <tr><td>builder-check</td><td>opus</td><td>Reads the design as someone who can't ask the author</td><td>Standard</td></tr>
+    <tr><td>report-reviewer</td><td>sonnet</td><td>Re-derives the report's claims, finds decisions nobody logged</td><td>Standard, risk paths</td></tr>
+  </table></div>
+  <p class="note">Reviewers get no edit tools and can't spawn agents. Your main session is the orchestrator, and opus is recommended for it. A plugin can't set that, so setup tells you.</p>
+
+  <h3>The commands</h3>
+  <div class="scroll"><table>
+    <tr><th>Command</th><th>Purpose</th><th>Who can run it</th></tr>
+    <tr><td><code>/gravity:setup</code></td><td>Create the project conf, prove its checks work, offer the CI receipt check</td><td>You or the agent</td></tr>
+    <tr><td><code>/gravity:status</code></td><td>Where every run stands, and the plugin version</td><td>You or the agent</td></tr>
+    <tr><td><code>/gravity:approve</code></td><td>Approve the document you were just shown</td><td>Only you</td></tr>
+    <tr><td><code>/gravity:resume</code></td><td>Take over a run, or clear a halt or pause</td><td>Only you</td></tr>
+    <tr><td><code>/gravity:abandon</code></td><td>Drop an unfinished run</td><td>Only you</td></tr>
+    <tr><td><code>/gravity:land</code></td><td>Squash the work into your checkout, uncommitted, and write the receipt</td><td>Only you</td></tr>
+  </table></div>
+  <p class="note">"Only you" stops honest mistakes rather than a determined agent, since an agent with shell access could still write to the ledger. The design says so plainly.</p>
+</section>
+
+<section id="pipeline">
+  <h2>The end-to-end pipeline</h2>
+  <p class="lead">This is the full Standard playbook. You act at three points. Everything between the two double lines runs without you and moves forward only by passing a check.</p>
+
+  <p>
+    <span class="tag human">Human</span> you decide &nbsp;
+    <span class="tag hard">Hard</span> can never be waved through &nbsp;
+    <span class="tag judge">Judgment</span> can be overruled, only in writing at the top of the report
+  </p>
+
+  <div class="pipe">
+    <div class="step">
+      <div class="box"><h4>Router</h4><p>Classifies, announces the playbook, writes the ledger's first line</p></div>
+      <div class="dot"></div>
+      <div class="gate"><span style="color:var(--soft);font-size:14px">No gate. You can override the playbook</span></div>
+    </div>
+
+    <div class="act"><span>ACT 1 · YOU'RE IN THE ROOM</span></div>
+
+    <div class="step">
+      <div class="box"><h4>Ask</h4><p>Questions, approaches, a design doc with numbered requirements. Builder check reads it cold</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">G1 <span class="tag human">Human</span></div><span style="font-size:14px">You approve the exact design you were shown</span></div>
+    </div>
+    <div class="step">
+      <div class="box"><h4>Plan</h4><p>Tasks with files, interfaces, dependencies, proof and acceptance checks</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">G2 <span class="tag human">Human</span> <span class="tag hard">Machine</span></div><span style="font-size:14px"><code>gravity plan check</code> passes, then you approve</span></div>
+    </div>
+
+    <div class="line">HANDOFF · questions end, rulings begin</div>
+    <div class="act"><span>ACT 2 · AGENT ALONE</span></div>
+
+    <div class="step">
+      <div class="box"><h4>Isolate</h4><p>Temporary worktree, install, baseline tests</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">G3 <span class="tag hard">Hard</span></div><span style="font-size:14px">Baseline green, and acceptance checks don't pass yet</span></div>
+    </div>
+    <div class="step">
+      <div class="box"><h4>Each task</h4><p>Fresh implementer, failing test first, then the code. Up to 4 fix rounds</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">G4 <span class="tag hard">Hard</span> <span class="tag judge">Judgment</span></div><span style="font-size:14px">Red recorded, proof, full suite and guards pass, then a fresh review</span></div>
+    </div>
+    <div class="step">
+      <div class="box"><h4>Verify</h4><p>The real thing runs on the real surface</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">G5 <span class="tag hard">Hard</span></div><span style="font-size:14px">Run command and every acceptance check prove it</span></div>
+    </div>
+    <div class="step">
+      <div class="box"><h4>Review</h4><p>Fresh eyes on the whole branch, with one fix wave</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">G6 <span class="tag judge">Judgment</span></div><span style="font-size:14px">Clean, or every finding has a recorded outcome</span></div>
+    </div>
+
+    <div class="line">REPORT · built from the ledger, checked against the code</div>
+
+    <div class="step">
+      <div class="box"><h4>Report</h4><p>Facts assembled from the ledger. The agent writes only the prose. A fresh reviewer re-derives the claims</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">Report <span class="tag hard">Hard</span></div><span style="font-size:14px"><code>gravity report --check</code>: nothing missing, nothing stale</span></div>
+    </div>
+
+    <div class="act"><span>ACT 3 · YOU'RE BACK</span></div>
+
+    <div class="step">
+      <div class="box"><h4>Read and land</h4><p>Squash-merged into your checkout with no commit. You commit and push</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">G7 <span class="tag human">Human</span></div><span style="font-size:14px">You type <code>/gravity:land</code>, and a receipt is written</span></div>
+    </div>
+
+    <div class="act"><span>AFTER · IN CI</span></div>
+
+    <div class="step">
+      <div class="box"><h4>Receipt check</h4><p>Your pull request is compared with what was proven, away from the machine that proved it</p></div>
+      <div class="dot"></div>
+      <div class="gate"><div class="gatename">CI <span class="tag good">Automatic</span></div><span style="font-size:14px">Files match, tests rerun under the base branch rules</span></div>
+    </div>
+    <svg class="plumb" width="44" height="60" viewBox="0 0 44 60" aria-hidden="true"><path d="M22 2 L40 22 Q22 34 22 58 Q22 34 4 22 Z" fill="#a8761f"/></svg>
+  </div>
+
+  <h3>What the report puts in front of you</h3>
+  <div class="scroll"><table>
+    <tr><th>Section</th><th>Contents</th></tr>
+    <tr><td>Your calls</td><td>What waits on you, with pick, effect, evidence and risk. Decidable from the report alone</td></tr>
+    <tr><td>Key signal</td><td>The one thing you must not miss</td></tr>
+    <tr><td>What changed</td><td>Plain words, against the goal</td></tr>
+    <tr><td>Requirements</td><td>Each requirement, its evidence, and whether that's measured, inferred or a guess</td></tr>
+    <tr><td>Rulings</td><td>Decisions made for you, costliest first, with the cost if wrong</td></tr>
+    <tr><td>Noticed</td><td>Things left alone on purpose, deferred minor items, what reviewers declined to judge</td></tr>
+    <tr><td>Not verified</td><td>What wasn't proven, why, and what would settle it</td></tr>
+    <tr><td>Look here, roll back</td><td>Where to start reading, how to run it, what would tell you to roll back, and the exact steps</td></tr>
+  </table></div>
+</section>
+
+<section id="task">
+  <h2>Inside one task</h2>
+  <p class="lead">Each step is done by a script or a fresh agent, so nothing depends on the orchestrator remembering. The dispatch names only file paths, so nothing can get softened in paraphrase.</p>
+
+  <div class="loop">
+    <div><code>gravity next</code> says what to do and which file to read</div>
+    <div><code>gravity task start</code> records the base</div>
+    <div><code>gravity brief</code> assembles the brief from the plan</div>
+    <div>Fresh implementer commits a failing test</div>
+    <div><code>gravity red</code> runs it and records that it failed</div>
+    <div>Implementer writes the code and commits</div>
+    <div><code>gravity gate</code> runs proof, full suite and guards</div>
+    <div><code>gravity package</code> builds the diff for review</div>
+    <div>Fresh reviewer files a verdict</div>
+    <div><code>gravity review check</code> confirms each finding is real</div>
+  </div>
+
+  <h3>When it fails</h3>
+  <div class="rounds">
+    <div class="round"><b>Round 1</b>Fresh implementer with one consolidated brief</div>
+    <div class="round"><b>Round 2</b>Must first state the assumption the failed fixes share, and how to test it</div>
+    <div class="round"><b>Round 3</b>Fresh implementer</div>
+    <div class="round"><b>Round 4</b>Fresh implementer on the stronger model</div>
+    <div class="round end"><b>Breaker</b><code>gravity</code> refuses a fifth round</div>
+  </div>
+  <div class="scroll"><table>
+    <tr><th>Still open at the breaker</th><th>Outcome</th></tr>
+    <tr><td>Contestable finding</td><td>A written ruling, shown in the report</td></tr>
+    <tr><td>Real but deferrable</td><td>Deferred, shown in the report</td></tr>
+    <tr><td>Load-bearing, or a hard gate still failing</td><td>Task blocked. Tasks depending on it are skipped. <strong>All independent tasks still finish</strong></td></tr>
+  </table></div>
+  <p class="note">Infrastructure failures don't use a round. A dropped connection retries the same brief, a context limit shrinks the scope, and a test failing in untouched code gets checked against the base.</p>
+
+  <h3>The two guards that stop an agent gaming the checks</h3>
+  <div class="three">
+    <div class="box">
+      <h4>Bar guard</h4>
+      <p>Stops the agent moving the goalposts. Commands come from a copy of the conf pinned when the run started, so <code>test = true</code> in a worktree does nothing. Any change to <code>.gravity/</code> or declared bar files fails, unless the plan you approved allows it.</p>
+    </div>
+    <div class="box">
+      <h4>Floor guard</h4>
+      <p>Catches skipped or focused tests, deleted tests, changed expected values, suppressions, stubs, empty catch blocks, and paths outside the task. The agent that made the change can't clear a hit. Only your approved plan or a fresh reviewer can, and every countersign reaches you.</p>
+    </div>
+  </div>
+</section>
+
+<section id="playbooks">
+  <h2>The four playbooks side by side</h2>
+  <p class="lead">Process scales with the work. A typo costs almost nothing, and a risky feature gets everything.</p>
+  <div class="scroll"><table class="matrix">
+    <tr><th></th><th>Tiny</th><th>Bug</th><th>Small</th><th>Standard</th></tr>
+    <tr><td>Ledger and run</td><td class="no">none</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Worktree</td><td class="no">none</td><td>yes</td><td>yes</td><td>yes</td></tr>
+    <tr><td>Documents</td><td class="no">none</td><td>Diagnosis record</td><td>One doc</td><td>Design and plan</td></tr>
+    <tr><td>Your approval before building</td><td class="no">none</td><td>Only if risky</td><td>One, combined</td><td>Two, G1 and G2</td></tr>
+    <tr><td>Who builds</td><td>Session, directly</td><td>Session, red first</td><td>Session</td><td>Fresh subagent per task</td></tr>
+    <tr><td>Proof</td><td>Relevant check</td><td>B1 to B5</td><td>G4 proof, G5</td><td>G4 proof, G5</td></tr>
+    <tr><td>Reviewer per task</td><td class="no">none</td><td class="no">none</td><td class="no">none</td><td>yes</td></tr>
+    <tr><td>Floor guard</td><td class="no">none</td><td>Once, at G6</td><td>Once, at G6</td><td>Every task</td></tr>
+    <tr><td>Whole-branch review</td><td class="no">none</td><td>G6</td><td>G6</td><td>G6</td></tr>
+    <tr><td>Report</td><td>Two lines</td><td>Full</td><td>Full</td><td>Full, plus report reviewer</td></tr>
+    <tr><td>You land it</td><td class="no">none</td><td>G7</td><td>G7</td><td>G7</td></tr>
+  </table></div>
+
+  <h3>The Bug playbook's own gates</h3>
+  <div class="scroll"><table>
+    <tr><th>Gate</th><th>Passes when</th></tr>
+    <tr><td>B1</td><td>Restated in one sentence before reading anyone's theory, and reproduced, or diagnostics requested</td></tr>
+    <tr><td>B2</td><td>Root cause is Confirmed under the rubric, with evidence you could quote</td></tr>
+    <tr><td>B3</td><td>A failing test captures the bug, recorded by <code>gravity red</code></td></tr>
+    <tr><td>B4</td><td>Fix is green, full suite passes, bar guard clean</td></tr>
+    <tr><td>B5</td><td>The original symptom is gone on the original surface</td></tr>
+  </table></div>
+</section>
+
+<section id="state">
+  <h2>How it remembers</h2>
+  <p class="lead">One append-only file per run is the only source of truth. Each step writes a line before and after it acts, so a "started" with no result means unfinished. Ledger state always outranks the conversation.</p>
+
+  <div class="three">
+    <div class="box" style="grid-column: 1 / -1; padding: 0; border: 0; background: none;">
+<pre class="dark">10:02:11  run.start     playbook=standard risk=none base=a1b2c3 gravity=1.0.0 format=1
+10:19:40  approve       gate=G1 doc=docs/specs/x.md hash=9f3e by=command
+10:41:30  gate          G3 pass tree=e1f2 evidence=evidence/g3.log
+10:44:00  task.start    n=1 base=c4d5e6
+10:44:02  dispatch      n=1 attempt=1 role=implementer model=sonnet
+10:52:40  gate          G4.1 pass tree=a9b8 evidence=evidence/g4-task-1-suite.log
+10:58:00  fix.round     n=2 round=1 cause=review
+11:10:44  ruling        cost=low what="renamed field to match design" why="design is binding"
+11:30:02  task.blocked  n=4 reason="suite fails in x after 4 rounds"
+12:01:09  landed        sha=none mode=uncommitted</pre>
+    </div>
+    <div class="box">
+      <h4>An approval is bound to what you saw</h4>
+      <p>The agent runs <code>gravity wait</code>, which records the document's fingerprint and stops. When you type <code>/gravity:approve</code>, the hook compares. If the document changed since you saw it, the approval is refused.</p>
+    </div>
+    <div class="box">
+      <h4>A pass is bound to exact code</h4>
+      <p>Each gate line records the tree hash it ran on. Any later change makes that pass stale, and the report check fails until it runs again.</p>
+    </div>
+    <div class="box">
+      <h4>Limits are counted, not remembered</h4>
+      <p>Compaction can cut rules out of memory. So fix rounds live in the ledger and <code>gravity</code> enforces the cap, whatever the agent recalls.</p>
+    </div>
+  </div>
+</section>
+
+<section id="receipt">
+  <h2>The receipt</h2>
+  <p class="lead">Gravity doesn't make the agent smarter. It gives you a receipt for what actually happened, and CI checks that receipt away from the machine that produced it.</p>
+
+  <div class="flow">
+    <div><b>You land</b>The receipt is built from the ledger</div>
+    <div><b>You commit</b>It travels with the code, as a file</div>
+    <div><b>PR opens</b>CI runs the checker from the base branch</div>
+    <div><b>Compare</b>Proven files against the PR head</div>
+    <div><b>Rerun</b>Install, tests, lint, types and build, under the base rules</div>
+    <div><b>Report</b>In the job log and summary</div>
+  </div>
+
+  <div class="three" style="margin-top:14px">
+    <div class="box" style="padding:0;border:0;background:none">
+<pre class="dark">format=1 gravity=1.0.0 run=2026-11-09-csv-export
+approve      G1 doc=docs/specs/x.md hash=9f3e
+approve      G2 doc=docs/plans/x.md hash=7ab1
+gate         G5 pass tree=c7d8
+gate         G6 pass tree=c7d8
+notverified  R7 reason=blocked
+counts       said_done=9 gates_rejected=2
+file         src/export.ts blob=ab12
+delete       src/old.ts</pre>
+    </div>
+    <div class="box">
+      <h4>What it holds, and what it proves</h4>
+      <p>File paths, hashes, gate names and counts. No prose and no data. It lists the tree that was actually proven, so if a merge changed the code, that shows up.</p>
+      <p><strong>said_done / gates_rejected</strong> is how often the agent reported done and a gate then said no. It's the plainest measure of what Gravity is worth.</p>
+    </div>
+  </div>
+
+  <h3>What CI reports</h3>
+  <div class="scroll"><table>
+    <tr><th>Finding</th><th>Meaning</th><th>Result</th></tr>
+    <tr><td>Files match</td><td>The code being merged is the code that was proven</td><td><span class="tag good">Pass</span></td></tr>
+    <tr><td>Changed after proof</td><td>A proven file differs at the PR head</td><td><span class="tag judge">Reported</span> fails only under <code>--strict</code></td></tr>
+    <tr><td>Not covered</td><td>The PR changes a file no receipt covers</td><td><span class="tag judge">Reported</span> fails only under <code>--strict</code></td></tr>
+    <tr><td>Tests fail</td><td>Commands come from the base branch's conf, so a PR can't change its own rules</td><td><span class="tag hard">Fail</span></td></tr>
+    <tr><td>No receipt</td><td>Tiny or manual work</td><td>Neutral</td></tr>
+  </table></div>
+  <p class="note">Its limits: a PR can edit the workflow file itself, so that file needs code owners or branch rules. It confirms files and reruns tests, but a forged approval line would still read as valid until approvals are signed. The real-surface check stays local, because CI often lacks that surface.</p>
+</section>
+
+<section id="scenarios">
+  <h2>Scenarios</h2>
+  <p class="lead">Click any row to see what happens, step by step. Requests are illustrative.</p>
+
+  <details open>
+    <summary><b>A full feature</b><span>"Add CSV export to the reports page, including the billing data"</span></summary>
+    <ol>
+      <li>Router: touches payment data, so <strong>Standard</strong> plus the security reviewer. One line, overridable.</li>
+      <li>Ask: it reads the code, then asks only what would change the build, each question with its guess.</li>
+      <li>Design doc with R1, R2 and so on. Builder check reads it cold. You run <code>/gravity:approve</code>.</li>
+      <li>Plan with proof per task. <code>plan check</code> passes. You approve again. <strong>You can now walk away.</strong></li>
+      <li>Worktree, baseline green, acceptance checks confirmed not passing yet.</li>
+      <li>Each task: fresh implementer, red, green, gates, fresh review.</li>
+      <li>Real surface runs. Whole-branch and security review. One fix wave.</li>
+      <li>Report built and checked. You read it and type <code>/gravity:land</code>. Changes and a receipt appear uncommitted for you to commit.</li>
+      <li>On your pull request, CI checks the receipt against the code.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>A tiny edit</b><span>"Fix the typo in the export button"</span></summary>
+    <ol>
+      <li>Router: <strong>Tiny</strong>. No run, no worktree, no conf needed.</li>
+      <li>Edit, run the relevant check, report in two lines. There's still no "done" without output.</li>
+      <li>If a decision appears, it steps up and a run begins.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>A bug report</b><span>"The export drops the last row"</span></summary>
+    <ol>
+      <li>Router: <strong>Bug</strong>, in a worktree from the start.</li>
+      <li>Restates the bug in one sentence before reading anyone's theory of the cause, then reproduces it.</li>
+      <li>Maps the path, lists at most 4 candidates, and scores them by evidence. Nothing Confirmed means no fix, only cheap checks.</li>
+      <li>Confirmed: shows cause and blast radius. Low risk and reversible continues. Otherwise it waits for your approval.</li>
+      <li>Failing test recorded, fix, full suite, original symptom gone.</li>
+      <li>Whole-branch review, report, you land it.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>The session dies mid-task</b><span>Laptop closes, crash, or usage limit</span></summary>
+    <ol>
+      <li>Nothing relies on cleanup at exit, because there's no dependable exit signal.</li>
+      <li>Next session: "Run X stopped at task 3. /gravity:resume or /gravity:abandon?" It never resumes alone.</li>
+      <li>You resume. Ownership moves to this session. Any uncommitted work is saved to a patch and the tree is restored.</li>
+      <li>An open fix round continues at that round, and the cap still counts.</li>
+      <li>If the task had committed and its proof still passes, it continues to review. Otherwise it saves a patch, resets and redoes the task fresh.</li>
+      <li>Each recovery step is safe to repeat, because a crash can hit recovery too.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>You change the goal mid-build</b><span>"Actually, make it PDF rather than CSV"</span></summary>
+    <ol>
+      <li>The test: would the approved design's text have to change? Yes, so the agent may not rule on it.</li>
+      <li>Stops at the task boundary, or stops the current task and saves its patch. Logs <code>goal.change</code>.</li>
+      <li>Triages each finished task: keep, revert or modify.</li>
+      <li>Updates the design and shows you the diff. You approve.</li>
+      <li>Re-plans from surviving commits in the same worktree. Rulings about files that then change are decided again.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>You message mid-build</b><span>A clarification, a side question, or "pause"</span></summary>
+    <ol>
+      <li><strong>Clarification</strong> that leaves the design's text alone: written as a ruling, and work continues.</li>
+      <li><strong>Unrelated question or new task</strong>: answered without touching the run, or parked as a follow-up in the report.</li>
+      <li><strong>"Pause"</strong>: stops at a safe boundary, saves a note, and waits for <code>/gravity:resume</code>.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>A hard gate stays blocked</b><span>Task 4 still fails after 4 rounds</span></summary>
+    <ol>
+      <li>Task 4 is marked blocked. Tasks that depend on it are skipped.</li>
+      <li>All independent tasks finish.</li>
+      <li>Any acceptance check for a requirement depending on task 4 becomes "not verified: blocked", so it can't fail G5 for the finished work.</li>
+      <li>The report says what didn't happen and why.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>The agent tries to cheat a check</b><span>Skips a test, or loosens the config</span></summary>
+    <ol>
+      <li>Editing the worktree's conf does nothing, because commands come from the pinned copy.</li>
+      <li>Changing a declared bar file fails G4, unless the plan you approved allows it.</li>
+      <li>A skipped test, a changed expected value or an empty catch block is a floor guard hit.</li>
+      <li>Only your approved plan or a fresh reviewer can clear a floor hit, and every countersign appears under Your calls.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>The real thing doesn't work</b><span>All tasks pass, but G5 fails on the integrated branch</span></summary>
+    <ol>
+      <li>No single task owns it, so it gets one fix wave across all the tasks' files.</li>
+      <li>Still failing: the run stops at the report, with G5 as the Key signal.</li>
+      <li><code>/gravity:land</code> refuses. You can keep the branch or discard it.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>Code changes after it passed</b><span>Someone edits a file, or a merge alters it, before the PR</span></summary>
+    <ol>
+      <li>The receipt lists each file as it was when G5 and G6 passed.</li>
+      <li>CI compares those against the PR head and names any file that differs: "changed after proof: auth.ts".</li>
+      <li>It's reported rather than blocked, since people may change code. A team can turn on <code>--strict</code> to fail the check.</li>
+      <li>A clean rebase doesn't trigger it, because the comparison is per file.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>The plan turns out wrong</b><span>A step can't work as written, after handoff</span></summary>
+    <ol>
+      <li><code>gravity halt</code> stops the run.</li>
+      <li>After <code>/gravity:resume</code>, <code>gravity plan change</code> opens the plan for editing and starts a new generation.</li>
+      <li>You approve the fixed plan at G2. If the design must change as well, it becomes a goal change.</li>
+    </ol>
+  </details>
+
+  <details>
+    <summary><b>A feature spans repos</b><span>Backend plus clients</span></summary>
+    <ol>
+      <li>The design is approved once, upstream, including shared data shapes as the contract.</li>
+      <li>Each repo gets its own plan, ledger, worktree and report. Upstream goes first.</li>
+      <li>Downstream runs link to the design, valid only while its fingerprint matches.</li>
+      <li>Each downstream run's acceptance calls the real upstream, checking URL, shape and auth.</li>
+      <li>A contract change is a goal change, and only runs whose part changed re-plan.</li>
+    </ol>
+  </details>
+</section>
+
+<section id="evals">
+  <h2>How Gravity itself is tested</h2>
+  <p class="lead">Skills are tested like code, and the same evals guard every wording change. These are planned. None has run yet, since Gravity isn't built.</p>
+
+  <div class="scroll"><table>
+    <tr><th>Layer</th><th>When</th><th>What it checks</th></tr>
+    <tr><td>Structure</td><td>Every push</td><td>Layout, router size, links, every documented command exists, versions match</td></tr>
+    <tr><td>Install</td><td>Every push</td><td>Plugin validates, and a real marketplace add and install work</td></tr>
+    <tr><td>Spine</td><td>Every push</td><td>Ledger replay, gate exit codes, guards on real git, plan, review, report and receipt checks, hooks. Each fixture shown able to fail</td></tr>
+    <tr><td>Routing</td><td>On demand, each new CLI</td><td>Realistic prompts reach the right playbook, and negatives stay out</td></tr>
+    <tr><td>Recovery</td><td>On demand</td><td>Really kill a run at each phase, then confirm nothing is lost or repeated</td></tr>
+    <tr><td>Goal change</td><td>On demand</td><td>Change the goal at each phase</td></tr>
+    <tr><td>Micro</td><td>Each wording change</td><td>One rule, a no-guidance control first, 5 or more reps</td></tr>
+    <tr><td>Pressure</td><td>Before each release</td><td>Run each playbook's scenario with no guidance, record the failure, confirm the wording fixes it</td></tr>
+    <tr><td>Seeded defects</td><td>Before each release</td><td>Reviewers against planted defects and decoys, with a hidden answer key and the bar set in advance</td></tr>
+  </table></div>
+
+  <h3>How an eval stays honest</h3>
+  <div class="flow">
+    <div><b>Same scenario</b>Pinned model and CLI. No words like "eval" or "test" visible to the agent</div>
+    <div><b>Two arms</b>With Gravity and without it</div>
+    <div><b>One judge</b>Scores both arms the same way</div>
+    <div><b>From the transcript</b>What was opened and run, never what the agent claims</div>
+    <div><b>Complete runs only</b>A permission denial is no score</div>
+  </div>
+  <p class="note">Silent wrong behavior must score worse than honest behavior. A skill firing never counts as a pass by itself. Every wording change needs a recorded failure it fixes.</p>
+</section>
+
+<section id="open">
+  <h2>Still open</h2>
+  <p class="lead">The plugin is built and its tool is tested, but it has not yet carried a real feature end to end. These remain.</p>
+  <div class="three">
+    <div class="box">
+      <h4>Decided</h4>
+      <p>1. Design approved<br>2. Test-first only<br>3. One question at a time unless independent, at most 4<br>4. Low-risk reversible bug fixes proceed without approval<br>5. A fresh agent for each fix round</p>
+    </div>
+    <div class="box">
+      <h4>Live check</h4>
+      <p><b>Confirmed:</b> subagent hooks carry the owning session, the router returns after compaction, the plugin path resolves in commands and agents.<br><b>Not tested:</b> hooks in bypass mode, a plugin upgrade mid-run, a user-level agent replacing a reviewer.</p>
+    </div>
+    <div class="box">
+      <h4>Before team rollout</h4>
+      <p>1. Run real work through each playbook<br>2. Pressure tests with and without Gravity<br>3. Seeded-defect test for the reviewers<br>4. Host the repo and bump the version per release</p>
+    </div>
+  </div>
+</section>
+
+<footer>Source of truth: <code>docs/specs/2026-11-09-gravity-design.md</code>. If this page and the design disagree, the design wins.</footer>
+</main>
+</body>
+</html>

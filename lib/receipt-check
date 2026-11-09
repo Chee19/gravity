@@ -1,0 +1,134 @@
+#!/bin/bash
+# Standalone so CI needs no plugin. Exit 0 pass or neutral, 1 fail, 2 could not run.
+
+DIR=$PWD
+BASE=
+STRICT=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -C) DIR=$2; shift 2 ;;
+    --base) BASE=$2; shift 2 ;;
+    --strict) STRICT=1; shift ;;
+    *) echo "receipt-check: unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
+[ -n "$BASE" ] || { echo "receipt-check: --base is required" >&2; exit 2; }
+git -C "$DIR" rev-parse --verify -q "$BASE^{commit}" >/dev/null || { echo "receipt-check: unknown base: $BASE" >&2; exit 2; }
+ROOT=$(git -C "$DIR" rev-parse --show-toplevel) || exit 2
+MB=$(git -C "$ROOT" merge-base "$BASE" HEAD) || exit 2
+TMP=$(mktemp -d) || exit 2
+trap 'rm -rf "$TMP"' EXIT
+
+say() {
+  printf '%s\n' "$*"
+  [ -z "${GITHUB_STEP_SUMMARY:-}" ] || printf '%s\n\n' "$*" >>"$GITHUB_STEP_SUMMARY"
+}
+
+conf_get() {
+  awk -v sec="$2" -v key="$3" '
+    /^[ \t]*[#;]/{next}
+    /^\[/{s=$0; gsub(/[][]/,"",s); next}
+    s==sec&&index($0,"="){
+      k=substr($0,1,index($0,"=")-1); gsub(/[ \t]+$/,"",k)
+      if(k==key){v=substr($0,index($0,"=")+1); sub(/^[ \t]+/,"",v); sub(/[ \t]+$/,"",v); print v; exit}
+    }' "$1"
+}
+
+git -C "$ROOT" -c core.quotepath=off diff --name-only --no-renames "$MB" HEAD >"$TMP/changed"
+grep '^\.gravity/receipts/.*\.receipt$' "$TMP/changed" >"$TMP/receipts"
+: >"$TMP/live"
+while IFS= read -r r; do
+  git -C "$ROOT" cat-file -e "HEAD:$r" 2>/dev/null && printf '%s\n' "$r" >>"$TMP/live"
+done <"$TMP/receipts"
+if [ ! -s "$TMP/live" ]; then
+  say "Gravity: no receipt in this change. Neutral."
+  exit 0
+fi
+
+soft=0
+: >"$TMP/covered"
+while IFS= read -r r; do
+  git -C "$ROOT" show "HEAD:$r" >"$TMP/one"
+  case "$(head -n 1 "$TMP/one")" in
+    format=1\ *) ;;
+    *) say "Gravity: cannot read receipt $r"; exit 2 ;;
+  esac
+  while IFS= read -r line; do
+    case "$line" in
+      "file "*)
+        p=${line#file }
+        p=${p% blob=*}
+        want=${line##* blob=}
+        printf '%s\n' "$p" >>"$TMP/covered"
+        got=$(git -C "$ROOT" rev-parse -q --verify "HEAD:$p" 2>/dev/null)
+        if [ "$got" != "$want" ]; then
+          say "Gravity: changed after proof: $p"
+          soft=$((soft + 1))
+        fi
+        ;;
+      "delete "*)
+        p=${line#delete }
+        printf '%s\n' "$p" >>"$TMP/covered"
+        if git -C "$ROOT" cat-file -e "HEAD:$p" 2>/dev/null; then
+          say "Gravity: changed after proof: $p should be deleted"
+          soft=$((soft + 1))
+        fi
+        ;;
+    esac
+  done <"$TMP/one"
+done <"$TMP/live"
+
+conf=$TMP/conf
+have_conf=
+git -C "$ROOT" show "$BASE:.gravity/project.conf" >"$conf" 2>/dev/null && have_conf=1
+specs=docs/specs
+plans=docs/plans
+if [ -n "$have_conf" ]; then
+  v=$(conf_get "$conf" paths specs); [ -z "$v" ] || specs=$v
+  v=$(conf_get "$conf" paths plans); [ -z "$v" ] || plans=$v
+fi
+while IFS= read -r p; do
+  case "$p" in .gravity/receipts/* | "$specs"/* | "$plans"/*) continue ;; esac
+  grep -q -F -x -- "$p" "$TMP/covered" && continue
+  say "Gravity: not covered by a receipt: $p"
+  soft=$((soft + 1))
+done <"$TMP/changed"
+
+hard=0
+if [ -n "$have_conf" ]; then
+  known=$(conf_get "$conf" baseline known_failing)
+  : >"$TMP/known"
+  if [ -n "$known" ]; then
+    git -C "$ROOT" show "$BASE:$known" 2>/dev/null | grep -v -E '^[[:space:]]*(#|$)' >"$TMP/known"
+  fi
+  for k in install test lint types build; do
+    cmd=$(conf_get "$conf" commands "$k")
+    case "$cmd" in
+      *" | external" | *" | project" | *" | suite") cmd=${cmd% | *} ;;
+    esac
+    case "$cmd" in "" | none | "none "*) continue ;; esac
+    (cd "$ROOT" && bash -c "$cmd") </dev/null >"$TMP/$k.log" 2>&1
+    rc=$?
+    [ "$rc" = 0 ] && continue
+    if [ "$k" = test ] && [ -s "$TMP/known" ]; then
+      lines=$(grep -E '(^|[[:space:]])(FAIL|FAILED|ERROR|not ok|✕|×)([[:space:]:]|$)' "$TMP/$k.log")
+      if [ -n "$lines" ] && [ -z "$(printf '%s\n' "$lines" | grep -v -F -f "$TMP/known")" ]; then
+        continue
+      fi
+    fi
+    say "Gravity: $k failed under the base branch rules"
+    tail -n 40 "$TMP/$k.log"
+    hard=1
+  done
+else
+  say "Gravity: the base branch has no conf, skipping the commands."
+fi
+
+[ "$hard" = 0 ] || exit 1
+if [ "$soft" -gt 0 ]; then
+  say "Gravity: $soft file(s) differ from what was proven."
+  [ -z "$STRICT" ] || exit 1
+  exit 0
+fi
+say "Gravity: the code being merged is the code that was proven."
+exit 0

@@ -1,0 +1,6 @@
+{
+  "name": "gravity",
+  "version": "1.0.0",
+  "description": "An engineering workflow that asks first, proves every step and reports what happened, with a receipt CI can check.",
+  "keywords": ["workflow", "tdd", "code-review", "verification"]
+}
